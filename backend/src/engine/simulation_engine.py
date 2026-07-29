@@ -65,7 +65,7 @@ class SimulationEngine:
             if decision.preempted is not None:
                 preempted = decision.preempted
                 self.state_mgr.change_state(preempted, ProcessState.READY)
-                self.cpl.add_process(preempted)
+                self.cpl.add_process(preempted, preserve_order=True)
                 self.events.register(
                     time, EventType.PREEMPTION, preempted.id,
                     f"{preempted.id} fue interrumpido por {decision.selected.id}",
@@ -173,6 +173,7 @@ class SimulationEngine:
                 current_state=ProcessState.NEW,
                 finish_time=None,
                 logical_order=i,
+                fifo_order=i,
             )
             for i, c in enumerate(creates)
         ]
