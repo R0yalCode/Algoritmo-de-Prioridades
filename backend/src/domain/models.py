@@ -30,6 +30,7 @@ class Process(BaseModel):
     current_state: ProcessState = ProcessState.NEW
     finish_time: Optional[int] = None
     logical_order: int = 0
+    fifo_order: int = 0
 
     @model_validator(mode="before")
     @classmethod

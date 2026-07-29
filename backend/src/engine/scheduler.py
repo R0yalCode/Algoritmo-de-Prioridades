@@ -26,7 +26,7 @@ class Scheduler:
                 return SchedulerDecision(current_process, None, "CONTINUE")
             return SchedulerDecision(None, None, "IDLE")
 
-        candidates.sort(key=lambda p: (p.priority, p.logical_order))
+        candidates.sort(key=lambda p: (p.priority, p.fifo_order))
         best = candidates[0]
 
         if current_process is None:

@@ -5,12 +5,16 @@ from src.domain.enums import ProcessState
 class CPLManager:
     def __init__(self) -> None:
         self._logical_queue: list[Process] = []
+        self._fifo_counter: int = 0
 
-    def add_process(self, process: Process) -> None:
+    def add_process(self, process: Process, preserve_order: bool = False) -> None:
         if process.current_state != ProcessState.READY:
             raise ValueError(
                 f"Proceso {process.id} debe estar en READY para entrar a CPL"
             )
+        if not preserve_order:
+            process.fifo_order = self._fifo_counter
+            self._fifo_counter += 1
         self._logical_queue.append(process)
 
     def remove_process(self, process: Process) -> None:

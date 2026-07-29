@@ -10,11 +10,11 @@ from src.engine.event_manager import EventManager
 from src.engine.metrics_calculator import MetricsCalculator
 
 
-def make_process(id: str, priority: int = 5, burst: int = 10, arrival: int = 0, logical: int = 0, state: ProcessState = ProcessState.READY):
+def make_process(id: str, priority: int = 5, burst: int = 10, arrival: int = 0, logical: int = 0, state: ProcessState = ProcessState.READY, fifo: int = 0):
     return Process(
         id=id, name=id, arrival_time=arrival, cpu_burst=burst,
         priority=priority, remaining_cpu=burst, executed_cpu=0,
-        current_state=state, logical_order=logical,
+        current_state=state, logical_order=logical, fifo_order=fifo,
     )
 
 
@@ -105,9 +105,9 @@ class TestScheduler:
 
     def test_fifo_tie_break(self):
         s = Scheduler()
-        p1 = make_process("P1", priority=3, logical=0)
-        p2 = make_process("P2", priority=3, logical=1)
-        p3 = make_process("P3", priority=3, logical=2)
+        p1 = make_process("P1", priority=3, fifo=0)
+        p2 = make_process("P2", priority=3, fifo=1)
+        p3 = make_process("P3", priority=3, fifo=2)
         decision = s.select_process(None, [p3, p1, p2])
         assert decision.selected.id == "P1"
 
