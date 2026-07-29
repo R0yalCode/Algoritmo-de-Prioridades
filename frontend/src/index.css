@@ -58,7 +58,7 @@
   --font-mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', ui-monospace, monospace;
 
   font-family: var(--font);
-  font-size: 16px;
+  font-size: 17px;
   color: var(--text);
   background: var(--bg);
   background-image: var(--bg-gradient);

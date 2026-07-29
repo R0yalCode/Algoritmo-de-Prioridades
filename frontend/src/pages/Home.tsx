@@ -1,17 +1,25 @@
-import { useNavigate } from 'react-router-dom';
-import Hero from '../components/landing/Hero';
-import EducationalCards from '../components/landing/EducationalCards';
+import { motion } from 'framer-motion';
+import LandingHeader from '../components/landing/LandingHeader';
+import LandingHero from '../components/landing/LandingHero';
+import AlgorithmFundamentals from '../components/landing/AlgorithmFundamentals';
+import MetricsPanel from '../components/landing/MetricsPanel';
+import TeamCarousel from '../components/landing/TeamCarousel';
+import LandingFooter from '../components/landing/LandingFooter';
 
 export default function Home() {
-  const navigate = useNavigate();
-
   return (
-    <div className="home-page">
-      <Hero
-        onNewExercise={() => navigate('/create')}
-        onLibrary={() => navigate('/library')}
-      />
-      <EducationalCards />
-    </div>
+    <motion.div
+      className="home-page"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4 }}
+    >
+      <LandingHeader />
+      <LandingHero />
+      <AlgorithmFundamentals />
+      <MetricsPanel />
+      <TeamCarousel />
+      <LandingFooter />
+    </motion.div>
   );
 }
