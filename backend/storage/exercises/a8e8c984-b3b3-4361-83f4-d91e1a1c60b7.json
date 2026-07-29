@@ -1,0 +1,106 @@
+{
+  "version": "1.0",
+  "exerciseId": "a8e8c984-b3b3-4361-83f4-d91e1a1c60b7",
+  "metadata": {
+    "name": "no vale 1",
+    "createdAt": "2026-07-29"
+  },
+  "processes": [
+    {
+      "id": "P1",
+      "name": "P1",
+      "arrivalTime": 5,
+      "cpuBurst": 4,
+      "priority": 1,
+      "ioOperations": []
+    },
+    {
+      "id": "P2",
+      "name": "P2",
+      "arrivalTime": 16,
+      "cpuBurst": 3,
+      "priority": 2,
+      "ioOperations": []
+    },
+    {
+      "id": "P3",
+      "name": "P3",
+      "arrivalTime": 3,
+      "cpuBurst": 8,
+      "priority": 3,
+      "ioOperations": [
+        {
+          "activationPoint": 2,
+          "duration": 4
+        },
+        {
+          "activationPoint": 4,
+          "duration": 3
+        }
+      ]
+    },
+    {
+      "id": "P4",
+      "name": "P4",
+      "arrivalTime": 7,
+      "cpuBurst": 5,
+      "priority": 1,
+      "ioOperations": []
+    },
+    {
+      "id": "P5",
+      "name": "P5",
+      "arrivalTime": 0,
+      "cpuBurst": 6,
+      "priority": 2,
+      "ioOperations": []
+    },
+    {
+      "id": "P6",
+      "name": "P6",
+      "arrivalTime": 9,
+      "cpuBurst": 5,
+      "priority": 3,
+      "ioOperations": [
+        {
+          "activationPoint": 2,
+          "duration": 3
+        }
+      ]
+    },
+    {
+      "id": "P7",
+      "name": "P7",
+      "arrivalTime": 2,
+      "cpuBurst": 7,
+      "priority": 1,
+      "ioOperations": [
+        {
+          "activationPoint": 3,
+          "duration": 2
+        }
+      ]
+    },
+    {
+      "id": "P8",
+      "name": "P8",
+      "arrivalTime": 10,
+      "cpuBurst": 6,
+      "priority": 1,
+      "ioOperations": []
+    },
+    {
+      "id": "P9",
+      "name": "P9",
+      "arrivalTime": 12,
+      "cpuBurst": 9,
+      "priority": 2,
+      "ioOperations": [
+        {
+          "activationPoint": 3,
+          "duration": 5
+        }
+      ]
+    }
+  ]
+}
