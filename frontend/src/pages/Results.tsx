@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Clock, Timer, Cpu, BarChart3, List, Save } from 'lucide-react';
 import GlassButton from '../components/ui/GlassButton';
@@ -7,12 +7,17 @@ import MetricCard from '../components/results/MetricCard';
 import ResultsGantt from '../components/results/ResultsGantt';
 import SaveExerciseModal from '../components/library/SaveExerciseModal';
 import Toast from '../components/ui/Toast';
+import { useStoredSimulation } from '../state/simulationContext';
 import type { GanttBlock, Metric, GlobalMetrics, ProcessFormData, ToastData } from '../types';
 
 export default function Results() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { gantt, metrics, globalMetrics, processes } = (location.state || {}) as {
+  const { simId } = useParams<{ simId: string }>();
+  const stored = useStoredSimulation(simId);
+  // El estado de navegación tiene prioridad; si no llega (entrada directa o
+  // recarga) se usa el resultado guardado en el estado global.
+  const { gantt, metrics, globalMetrics, processes } = ((location.state as unknown) || stored || {}) as {
     gantt: GanttBlock[];
     metrics: Metric[];
     globalMetrics: GlobalMetrics | null;

@@ -1,8 +1,9 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, BarChart3, Eye } from 'lucide-react';
+import { ArrowLeft, BarChart3, Save } from 'lucide-react';
 import { useHistory } from '../hooks/useHistory';
+import { useStoredSimulation } from '../state/simulationContext';
 import TimelineToolbar from '../components/history/TimelineToolbar';
 import TimelineScroller from '../components/history/TimelineScroller';
 import ReadyQueueRow from '../components/history/ReadyQueueRow';
@@ -12,20 +13,27 @@ import TimeScale from '../components/history/TimeScale';
 import EventTimeline from '../components/history/EventTimeline';
 import Legend from '../components/history/Legend';
 import GlassButton from '../components/ui/GlassButton';
+import SaveExerciseModal from '../components/library/SaveExerciseModal';
+import Toast from '../components/ui/Toast';
 import { processColor } from '../components/history/layout';
+import type { ToastData } from '../types';
 
 /**
- * Vista histórica. Consume exclusivamente simulation.history:
- * readyTimeline, ioTimeline, cpuTimeline y eventTimeline.
+ * Vista histórica: pantalla principal de análisis de una simulación.
  *
- * No lee snapshots, no reconstruye historia, no infiere estados y no calcula
- * posiciones: solo representa lo que el backend ya resolvió.
+ * Consume exclusivamente simulation.history (readyTimeline, ioTimeline,
+ * cpuTimeline y eventTimeline). No lee snapshots, no reconstruye historia, no
+ * infiere estados y no calcula posiciones.
  */
 
 export default function HistoryView() {
   const { simId } = useParams<{ simId: string }>();
   const navigate = useNavigate();
   const hv = useHistory(simId);
+  const stored = useStoredSimulation(simId);
+
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [toast, setToast] = useState<ToastData | null>(null);
 
   // Un color por proceso, fijado por su visualIndex permanente.
   const colors = useMemo(() => {
@@ -40,6 +48,19 @@ export default function HistoryView() {
     (processId: string) => colors.get(processId) ?? '#64748b',
     [colors],
   );
+
+  const openResults = useCallback(() => {
+    navigate(`/results/${simId}`, {
+      state: stored
+        ? {
+            gantt: stored.gantt,
+            metrics: stored.metrics,
+            globalMetrics: stored.globalMetrics,
+            processes: stored.processes,
+          }
+        : undefined,
+    });
+  }, [navigate, simId, stored]);
 
   if (hv.loading) {
     return (
@@ -86,15 +107,16 @@ export default function HistoryView() {
         </div>
         <GlassButton
           variant="secondary" size="sm" icon={<BarChart3 size={16} />}
-          onClick={() => navigate(`/results/${simId}`)}
+          onClick={openResults}
         >
           Resultados
         </GlassButton>
         <GlassButton
-          variant="secondary" size="sm" icon={<Eye size={16} />}
-          onClick={() => navigate(`/simulation/${simId}`)}
+          variant="primary" size="sm" icon={<Save size={16} />}
+          onClick={() => setShowSaveModal(true)}
+          disabled={!stored}
         >
-          Simulación
+          Guardar
         </GlassButton>
       </div>
 
@@ -156,6 +178,19 @@ export default function HistoryView() {
         />
         <Legend />
       </div>
+
+      <SaveExerciseModal
+        open={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        processes={stored?.processes ?? []}
+        onSaved={() => setToast({
+          id: 'save',
+          message: 'Ejercicio guardado correctamente',
+          type: 'success',
+        })}
+      />
+
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
     </motion.div>
   );
 }

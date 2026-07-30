@@ -2,10 +2,10 @@
  *  El Gantt y la escala temporal usan la misma unidad, por eso quedan
  *  perfectamente alineados sin ningún cálculo adicional. */
 
-export const PX_PER_TICK = 34;      // CPU y escala temporal
-export const IO_PX_PER_UNIT = 30;   // ancho proporcional a duration de E/S
-export const READY_CARD_W = 74;     // todas las tarjetas miden igual
-export const LABEL_W = 104;         // canal fijo de etiquetas de cada fila
+export const PX_PER_TICK = 46;      // CPU y escala temporal
+export const IO_PX_PER_UNIT = 52;   // ancho proporcional a duration de E/S
+export const READY_CARD_W = 96;     // todas las tarjetas miden igual
+export const LABEL_W = 132;         // canal fijo de etiquetas de cada fila
 
 /** Colores por proceso para el Gantt, asignados por visualIndex. */
 const PROCESS_PALETTE = [
