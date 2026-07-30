@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Plus, Play, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Play, X, AlertCircle } from 'lucide-react';
 import { api } from '../../services/api';
 import { useSimulationStore } from '../../state/simulationContext';
 import GlassButton from '../ui/GlassButton';
+import GlassDialog from '../ui/GlassDialog';
 import ProcessTable from './ProcessTable';
 import type { ProcessFormData } from '../../types';
 
@@ -34,6 +35,7 @@ export default function CreateExercisePage() {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const updateProcess = useCallback((idx: number, p: ProcessFormData) => {
     setProcesses((prev) => {
@@ -129,7 +131,7 @@ export default function CreateExercisePage() {
             <p className="create-desc">Defina los procesos que participarán en la simulación.</p>
           </div>
         </div>
-        <GlassButton variant="primary" icon={<Plus size={16} />} onClick={addProcess}>
+        <GlassButton variant="primary" size="lg" icon={<Plus size={18} />} onClick={addProcess}>
           Agregar proceso
         </GlassButton>
       </div>
@@ -148,11 +150,30 @@ export default function CreateExercisePage() {
       />
 
       <div className="create-footer">
-        <GlassButton variant="ghost" onClick={() => navigate(-1)}>Cancelar</GlassButton>
-        <GlassButton variant="primary" icon={<Play size={16} />} onClick={handleCreate} loading={loading}>
+        <GlassButton
+          variant="secondary" size="lg" icon={<X size={18} />}
+          onClick={() => setShowCancelConfirm(true)}
+        >
+          Cancelar
+        </GlassButton>
+        <GlassButton
+          variant="primary" size="lg" icon={<Play size={18} />}
+          onClick={handleCreate} loading={loading}
+        >
           Iniciar simulación
         </GlassButton>
       </div>
+
+      <GlassDialog
+        open={showCancelConfirm}
+        onClose={() => setShowCancelConfirm(false)}
+        onConfirm={() => navigate(-1)}
+        title="Cancelar ejercicio"
+        message="¿Está seguro de cancelar este ejercicio? Se perderán todos los cambios realizados."
+        confirmLabel="Cancelar"
+        cancelLabel="Continuar editando"
+        variant="warning"
+      />
     </motion.div>
   );
 }

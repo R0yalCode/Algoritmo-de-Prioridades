@@ -185,9 +185,11 @@ class TestEngineIntegration:
         assert engine.history_builder.build().model_dump() == result.history.model_dump()
 
     def test_proceso_bloqueado_es_observado(self):
+        """P1 hace una E/S y regresa: su aparición vigente pasa a ser la segunda."""
         engine, _ = run([make_process("P1", 0, 10, 2, [make_io(5, 3)])])
         builder = engine.history_builder
-        assert builder.visual_index_of("P1") == 0
+        assert builder.appearance_count_of("P1") == 2
+        assert builder.visual_index_of("P1") == 1
         assert builder.observed_ticks > 0
 
 

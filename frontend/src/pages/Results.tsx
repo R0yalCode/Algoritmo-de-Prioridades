@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Clock, Timer, Cpu, BarChart3, List, Save } from 'lucide-react';
 import GlassButton from '../components/ui/GlassButton';
 import MetricCard from '../components/results/MetricCard';
+import MetricsTable from '../components/results/MetricsTable';
 import ResultsGantt from '../components/results/ResultsGantt';
 import SaveExerciseModal from '../components/library/SaveExerciseModal';
 import Toast from '../components/ui/Toast';
@@ -32,7 +33,7 @@ export default function Results() {
       <div className="sim-loading">
         <div className="glass error-card">
           <p>No hay resultados disponibles.</p>
-          <GlassButton variant="secondary" onClick={() => navigate('/')}>Volver</GlassButton>
+          <GlassButton variant="secondary" size="md" onClick={() => navigate('/')}>Volver</GlassButton>
         </div>
       </div>
     );
@@ -50,15 +51,19 @@ export default function Results() {
           <ArrowLeft size={20} />
         </button>
         <h2>Resultados de la simulación</h2>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="results-header-actions">
           <GlassButton
-            variant="primary"
-            icon={<Save size={16} />}
+            variant="secondary" size="md"
+            onClick={() => navigate('/')}
+          >
+            Volver al inicio
+          </GlassButton>
+          <GlassButton
+            variant="primary" size="md" icon={<Save size={18} />}
             onClick={() => setShowSaveModal(true)}
           >
             Guardar ejercicio
           </GlassButton>
-          <GlassButton variant="ghost" onClick={() => navigate('/')}>Volver al inicio</GlassButton>
         </div>
       </div>
 
@@ -100,37 +105,19 @@ export default function Results() {
           <List size={18} />
           Métricas por proceso
         </h3>
-        <div className="metrics-table-wrap glass">
-          <table className="metrics-table">
-            <thead>
-              <tr>
-                <th>Proceso</th>
-                <th>Tiempo de retorno</th>
-                <th>Tiempo de espera</th>
-              </tr>
-            </thead>
-            <tbody>
-              {metrics.map((m, i) => (
-                <motion.tr
-                  key={m.processId}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                >
-                  <td className="metric-proc-id">{m.processId}</td>
-                  <td>{m.turnaroundTime} ms</td>
-                  <td>{m.waitingTime} ms</td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <MetricsTable
+          metrics={metrics}
+          globalMetrics={globalMetrics}
+          processes={processes || []}
+        />
       </div>
 
       <ResultsGantt blocks={gantt || []} />
 
       <div className="results-footer">
-        <GlassButton variant="ghost" onClick={() => navigate('/')}>Volver al inicio</GlassButton>
+        <GlassButton variant="secondary" size="lg" onClick={() => navigate('/')}>
+          Volver al inicio
+        </GlassButton>
       </div>
 
       <SaveExerciseModal

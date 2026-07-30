@@ -4,9 +4,13 @@ import { READY_CARD_W, STATE_LABEL } from './layout';
 /**
  * Cola de listos como fila histórica permanente.
  *
- * Una tarjeta por proceso, colocada en su visualIndex y del mismo tamaño
- * siempre. La tarjeta nunca se mueve, nunca se crea y nunca se elimina: solo
- * cambia de apariencia según la observación de history[] del tick actual.
+ * Una tarjeta por CADA APARICIÓN histórica (no por proceso): un mismo proceso
+ * puede tener varias tarjetas si regresó de E/S más de una vez, una por cada
+ * regreso. `visualIndex` identifica la aparición de forma única y permanente
+ * en su posición; nunca se reordena, nunca se elimina y nunca se funde con
+ * otra tarjeta del mismo proceso. La apropiación no genera una tarjeta nueva
+ * (el proceso vuelve a READY dentro de la misma aparición); solo el regreso
+ * desde E/S abre una aparición — y por lo tanto una tarjeta — nueva.
  */
 
 interface Props {
@@ -32,7 +36,7 @@ export default function ReadyQueueRow({ entries, currentTime }: Props) {
         const state = obs ? obs.state : 'NEW';
         return (
           <div
-            key={entry.processId}
+            key={entry.visualIndex}
             className="hv-card"
             data-state={state}
             style={{ width: READY_CARD_W }}

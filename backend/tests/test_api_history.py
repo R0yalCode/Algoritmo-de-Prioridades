@@ -40,7 +40,8 @@ class TestApiHistory:
     def test_history_viaja_en_la_respuesta(self):
         history = run_api()["history"]
         assert set(history) == {"readyTimeline", "ioTimeline", "cpuTimeline", "eventTimeline"}
-        assert len(history["readyTimeline"]) == 2
+        # P1 hace una E/S y regresa -> 2 apariciones; P2 nunca hace E/S -> 1
+        assert len(history["readyTimeline"]) == 3
         assert len(history["ioTimeline"]) == 1
         assert len(history["cpuTimeline"]) == 4
         assert history["eventTimeline"]
