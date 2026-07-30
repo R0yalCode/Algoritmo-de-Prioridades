@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Plus, Play, AlertCircle } from 'lucide-react';
 import { api } from '../../services/api';
+import { useSimulationStore } from '../../state/simulationContext';
 import GlassButton from '../ui/GlassButton';
 import ProcessTable from './ProcessTable';
 import type { ProcessFormData } from '../../types';
@@ -14,6 +15,7 @@ function emptyProcess(): ProcessFormData {
 export default function CreateExercisePage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { save } = useSimulationStore();
 
   const initial = (location.state as any)?.loadExercise?.processes;
   const [processes, setProcesses] = useState<ProcessFormData[]>(
@@ -52,6 +54,11 @@ export default function CreateExercisePage() {
     });
   }, []);
 
+  /**
+   * Crear → ejecutar → recibir resultado → guardarlo en el estado global →
+   * navegar a la Vista Histórica. Ante cualquier error no se navega: el
+   * usuario permanece aquí con el mensaje correspondiente.
+   */
   const handleCreate = async () => {
     setError('');
     setLoading(true);
@@ -62,14 +69,47 @@ export default function CreateExercisePage() {
       priority: p.priority,
       ioOperations: p.ioOperations,
     }));
-    const res = await api.create(payload);
-    if (!res.success) {
-      setError(res.error?.message || 'Error al crear la simulación');
+
+    try {
+      const created = await api.create(payload);
+      if (!created.success || !created.data) {
+        setError(created.error?.message || 'Error al crear la simulación');
+        return;
+      }
+      const simId = created.data.simulationId;
+
+      const executed = await api.execute(simId);
+      if (!executed.success) {
+        setError(executed.error?.message || 'Error al ejecutar la simulación');
+        return;
+      }
+
+      const results = await api.getResults(simId);
+      if (!results.success || !results.data) {
+        setError(results.error?.message || 'Error al obtener resultados');
+        return;
+      }
+      if (!results.data.history) {
+        setError('La simulación no devolvió historial pedagógico');
+        return;
+      }
+
+      save({
+        simulationId: simId,
+        processes: payload,
+        history: results.data.history,
+        gantt: results.data.gantt,
+        metrics: results.data.metrics,
+        globalMetrics: results.data.globalMetrics,
+      });
+
+      navigate(`/timeline/${simId}`);
+    } catch {
+      // Respuesta no interpretable o backend inaccesible: no se navega.
+      setError('No se pudo completar la simulación. Revise los datos e intente nuevamente.');
+    } finally {
       setLoading(false);
-      return;
     }
-    setLoading(false);
-    navigate(`/simulation/${res.data!.simulationId}`, { state: { processes: payload } });
   };
 
   return (

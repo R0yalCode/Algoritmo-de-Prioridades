@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { api } from '../services/api';
+import { useStoredSimulation } from '../state/simulationContext';
 import type { SimulationHistory } from '../types';
 
 /**
@@ -8,6 +9,9 @@ import type { SimulationHistory } from '../types';
  * Fuente única: simulation.history. No se leen snapshots, no se reconstruye
  * nada y no se recalculan estados: el cursor es un índice sobre
  * history.eventTimeline y el tiempo actual sale del evento apuntado.
+ *
+ * Si el resultado ya está en el estado global (flujo normal desde "Iniciar
+ * simulación") se usa directamente; si se entra por URL se pide a la API.
  */
 
 const EMPTY: SimulationHistory = {
@@ -22,9 +26,10 @@ const BASE_STEP_MS = 700;
 export type PlayState = 'stopped' | 'playing' | 'paused';
 
 export function useHistory(simId: string | undefined) {
-  const [loading, setLoading] = useState(true);
+  const stored = useStoredSimulation(simId);
+  const [loading, setLoading] = useState(!stored);
   const [error, setError] = useState('');
-  const [history, setHistory] = useState<SimulationHistory>(EMPTY);
+  const [history, setHistory] = useState<SimulationHistory>(stored?.history ?? EMPTY);
   const [cursor, setCursor] = useState(0);
   const [playState, setPlayState] = useState<PlayState>('stopped');
   const [speed, setSpeed] = useState(1);
@@ -32,6 +37,12 @@ export function useHistory(simId: string | undefined) {
 
   const load = useCallback(async () => {
     if (!simId) return;
+    if (stored) {
+      setHistory(stored.history);
+      setCursor(0);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const res = await api.getResults(simId);
     if (!res.success || !res.data) {
@@ -47,7 +58,7 @@ export function useHistory(simId: string | undefined) {
     setHistory(res.data.history);
     setCursor(0);
     setLoading(false);
-  }, [simId]);
+  }, [simId, stored]);
 
   useEffect(() => { load(); }, [load]);
 
