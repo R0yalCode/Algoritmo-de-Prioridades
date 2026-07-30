@@ -19,6 +19,26 @@ Fuentes de cada línea de tiempo, todas lecturas directas:
 Los nombres de eventos y estados son los del contrato documentado
 (docs/11_eventos.md, docs/03_modelo_temporal.md) y se comparan como texto: el
 paquete no importa los enums del motor.
+
+Regla de apariciones (readyTimeline)
+-------------------------------------
+Un proceso puede tener varias apariciones históricas a lo largo de la
+simulación. Cada aparición es una entrada independiente en `ready_timeline`,
+con su propio `visual_index` y `first_appearance`, fijos mientras esa
+aparición está vigente:
+
+  Llegada (PROCESS_ARRIVAL)  abre una aparición nueva.
+  Apropiación                NO abre una aparición nueva: el proceso vuelve a
+                              READY dentro de la misma aparición vigente.
+  Retorno de E/S (IO_COMPLETE) abre una aparición nueva. Es, junto con la
+                              llegada, la única situación que crea una entrada
+                              nueva.
+
+Una aparición deja de recibir observaciones exactamente en el tick en que se
+abre la siguiente aparición del mismo proceso: su último estado observado
+(normalmente BLOCKED) queda fijo, y esa tarjeta permanece en la historia sin
+volver a actualizarse. El frontend la sigue mostrando (nunca se elimina), solo
+con apariencia "histórica" en vez de "activa".
 """
 
 from typing import Any, Optional, Sequence
@@ -46,7 +66,6 @@ from src.history.tracking import (
     ObservationDraft,
     ProcessTrack,
 )
-from src.history.visual_index import VisualIndexRegistry
 
 EVENT_PROCESS_ARRIVAL = "PROCESS_ARRIVAL"
 EVENT_CPU_EXECUTION = "CPU_EXECUTION"
@@ -61,9 +80,14 @@ def _as_text(value: Any) -> str:
 
 
 class PedagogicalHistoryBuilder(HistoryBuilder):
-    def __init__(self, visual_index_registry: VisualIndexRegistry | None = None) -> None:
-        self._registry = visual_index_registry or VisualIndexRegistry()
-        self._tracks: dict[str, ProcessTrack] = {}
+    def __init__(self) -> None:
+        self._appearance_counter: int = 0
+        # Última aparición vigente de cada proceso: la que recibe las
+        # observaciones de los ticks mientras no se abra una aparición nueva.
+        self._current_appearance: dict[str, ProcessTrack] = {}
+        # Todas las apariciones que existieron, en el orden en que se
+        # crearon. Ese orden es, por construcción, el orden visual final.
+        self._all_appearances: list[ProcessTrack] = []
         self._events: list[EventTimelineEntry] = []
         self._io_blocks: list[IOBlockDraft] = []
         self._open_io: dict[str, IOBlockDraft] = {}
@@ -72,8 +96,9 @@ class PedagogicalHistoryBuilder(HistoryBuilder):
         self._last_observed_time: int = 0
 
     def reset(self) -> None:
-        self._registry.reset()
-        self._tracks.clear()
+        self._appearance_counter = 0
+        self._current_appearance.clear()
+        self._all_appearances.clear()
         self._events.clear()
         self._io_blocks.clear()
         self._open_io.clear()
@@ -82,11 +107,9 @@ class PedagogicalHistoryBuilder(HistoryBuilder):
         self._last_observed_time = 0
 
     def observe_initial_state(self, snapshot: SnapshotView) -> None:
-        # El snapshot inicial no corresponde a ningún tick: no genera
-        # observaciones. Solo reserva el índice visual de un proceso que ya
-        # estuviera presente antes del primer tick.
-        for process in self._snapshot_processes(snapshot):
-            self._track(process.id, snapshot.time)
+        # El snapshot inicial (t=0) se construye antes de procesar las
+        # llegadas del primer tick, así que sus tres colas están siempre
+        # vacías: no hay ninguna aparición que abrir todavía.
         self._last_observed_time = snapshot.time
 
     def observe_tick(
@@ -100,7 +123,7 @@ class PedagogicalHistoryBuilder(HistoryBuilder):
         self._last_observed_time = snapshot.time
 
     def build(self) -> SimulationHistory:
-        for track in self._tracks.values():
+        for track in self._all_appearances:
             track.resolve()
         return SimulationHistory(
             ready_timeline=self._build_ready_timeline(),
@@ -124,13 +147,27 @@ class PedagogicalHistoryBuilder(HistoryBuilder):
         return len(self._events)
 
     def visual_index_of(self, process_id: str) -> int | None:
-        return self._registry.index_of(process_id)
+        """visual_index de la aparición vigente (la más reciente) del proceso."""
+        track = self._current_appearance.get(process_id)
+        return track.visual_index if track else None
 
     def first_appearance_of(self, process_id: str) -> int | None:
-        return self._registry.first_appearance_of(process_id)
+        """first_appearance de la aparición vigente (la más reciente) del proceso."""
+        track = self._current_appearance.get(process_id)
+        return track.first_appearance if track else None
 
     def known_process_ids(self) -> list[str]:
-        return self._registry.known_processes()
+        """Identificadores únicos, en el orden de su primera aparición."""
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for track in self._all_appearances:
+            if track.process_id not in seen:
+                seen.add(track.process_id)
+                ordered.append(track.process_id)
+        return ordered
+
+    def appearance_count_of(self, process_id: str) -> int:
+        return sum(1 for t in self._all_appearances if t.process_id == process_id)
 
     # --- Absorción ---
 
@@ -152,13 +189,14 @@ class PedagogicalHistoryBuilder(HistoryBuilder):
             if event.process_id is None:
                 continue
             if event_type == EVENT_PROCESS_ARRIVAL:
-                self._track(event.process_id, event.time)
+                self._begin_appearance(event.process_id, event.time)
             elif event_type == EVENT_CPU_EXECUTION:
                 running_id = event.process_id
             elif event_type == EVENT_IO_START:
                 self._open_io_block(event.process_id, event.time)
             elif event_type == EVENT_IO_COMPLETE:
                 self._close_io_block(event.process_id, event.time)
+                self._begin_appearance(event.process_id, event.time)
         return running_id
 
     def _absorb_snapshot(
@@ -168,11 +206,8 @@ class PedagogicalHistoryBuilder(HistoryBuilder):
         views: dict[str, ProcessView] = {}
         for process in self._snapshot_processes(snapshot):
             views[process.id] = process
-            self._track(process.id, tick)
-        if running_id is not None:
-            self._track(running_id, tick)
 
-        for process_id, track in self._tracks.items():
+        for process_id, track in self._current_appearance.items():
             state = self._state_of(process_id, running_id, snapshot, ready_positions, track)
             if state is None:
                 continue
@@ -227,23 +262,33 @@ class PedagogicalHistoryBuilder(HistoryBuilder):
             *snapshot.terminated_processes,
         ]
 
-    def _track(self, process_id: str, time: int) -> ProcessTrack:
-        visual_index = self._registry.register(process_id, time)
-        track = self._tracks.get(process_id)
-        if track is None:
-            track = ProcessTrack(
-                process_id=process_id,
-                visual_index=visual_index,
-                first_appearance=self._registry.first_appearance_of(process_id) or 0,
-            )
-            self._tracks[process_id] = track
+    def _begin_appearance(self, process_id: str, time: int) -> ProcessTrack:
+        """Abre una aparición nueva y la deja como la vigente del proceso.
+
+        La aparición anterior (si existía) deja de recibir observaciones a
+        partir de este momento: queda fija en su último estado conocido.
+        """
+        track = ProcessTrack(
+            process_id=process_id,
+            visual_index=self._appearance_counter,
+            first_appearance=time,
+        )
+        self._appearance_counter += 1
+        self._current_appearance[process_id] = track
+        self._all_appearances.append(track)
         return track
 
     def _open_io_block(self, process_id: str, time: int) -> None:
+        # La E/S nunca abre una aparición nueva: se registra contra la que
+        # está vigente en este momento (docs/13_historia_pedagogica.md,
+        # Caso 2 — "la aparición histórica activa termina" en el sentido
+        # visual, no en el sentido de identidad de la entrada).
+        track = self._current_appearance.get(process_id)
         block = IOBlockDraft(
             process_id=process_id,
             source_tick=time,
             start=time + 1,
+            track=track,
         )
         self._open_io[process_id] = block
         self._io_blocks.append(block)
@@ -256,17 +301,16 @@ class PedagogicalHistoryBuilder(HistoryBuilder):
     # --- Construcción ---
 
     def _build_ready_timeline(self) -> list[ReadyTimelineEntry]:
-        entries: list[ReadyTimelineEntry] = []
-        for process_id in self._registry.known_processes():
-            track = self._tracks[process_id]
-            entries.append(ReadyTimelineEntry(
-                process_id=process_id,
+        return [
+            ReadyTimelineEntry(
+                process_id=track.process_id,
                 priority=track.known_priority(),
                 first_appearance=track.first_appearance,
                 visual_index=track.visual_index,
                 history=[self._to_observation(d) for d in track.drafts],
-            ))
-        return entries
+            )
+            for track in self._all_appearances
+        ]
 
     def _to_observation(self, draft: ObservationDraft) -> ReadyStateObservation:
         return ReadyStateObservation(
@@ -283,7 +327,7 @@ class PedagogicalHistoryBuilder(HistoryBuilder):
     def _build_io_timeline(self) -> list[IOTimelineEntry]:
         entries: list[IOTimelineEntry] = []
         for block in self._io_blocks:
-            track = self._tracks.get(block.process_id)
+            track = block.track
             draft = track.draft_at(block.source_tick) if track else None
             entries.append(IOTimelineEntry(
                 process_id=block.process_id,

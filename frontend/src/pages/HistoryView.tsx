@@ -35,11 +35,21 @@ export default function HistoryView() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [toast, setToast] = useState<ToastData | null>(null);
 
-  // Un color por proceso, fijado por su visualIndex permanente.
+  // Un color por proceso (no por aparición): un proceso con varias tarjetas
+  // (una por cada regreso de E/S) debe verse igual en todas ellas y en el
+  // Gantt de CPU. El índice usado para elegir el color es un contador
+  // compacto de procesos únicos en orden de primera aparición (0..N-1), no
+  // el visualIndex de la aparición: ese vive en el espacio disperso de todas
+  // las apariciones (0..22 en el ejercicio oficial) y repartiría mal los
+  // colores de la paleta entre procesos realmente distintos.
   const colors = useMemo(() => {
     const map = new Map<string, string>();
+    let nextColorIndex = 0;
     hv.readyTimeline.forEach((entry) => {
-      map.set(entry.processId, processColor(entry.visualIndex));
+      if (!map.has(entry.processId)) {
+        map.set(entry.processId, processColor(nextColorIndex));
+        nextColorIndex += 1;
+      }
     });
     return map;
   }, [hv.readyTimeline]);
@@ -106,13 +116,13 @@ export default function HistoryView() {
           </span>
         </div>
         <GlassButton
-          variant="secondary" size="sm" icon={<BarChart3 size={16} />}
+          variant="secondary" size="md" icon={<BarChart3 size={18} />}
           onClick={openResults}
         >
           Resultados
         </GlassButton>
         <GlassButton
-          variant="primary" size="sm" icon={<Save size={16} />}
+          variant="primary" size="md" icon={<Save size={18} />}
           onClick={() => setShowSaveModal(true)}
           disabled={!stored}
         >
@@ -142,14 +152,14 @@ export default function HistoryView() {
           comparten el eje temporal. */}
       <div className="hv-lines">
         <TimelineScroller
-          title="READY QUEUE"
-          sub={`${hv.readyTimeline.length} procesos`}
+          title="Procesos listos"
+          sub={`${hv.readyTimeline.length} apariciones`}
         >
           <ReadyQueueRow entries={hv.readyTimeline} currentTime={hv.currentTime} />
         </TimelineScroller>
 
         <TimelineScroller
-          title="I/O QUEUE"
+          title="Operaciones E/S"
           sub={`${hv.ioTimeline.length} operaciones`}
         >
           <IOQueueRow operations={hv.ioTimeline} currentTime={hv.currentTime} />

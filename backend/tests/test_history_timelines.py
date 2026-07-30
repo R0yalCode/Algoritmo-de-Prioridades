@@ -46,30 +46,53 @@ ESCENARIOS = {
 }
 
 
+def entries_of(history, process_id: str) -> list:
+    """Todas las apariciones de un proceso, en orden de creación."""
+    return [e for e in history.ready_timeline if e.process_id == process_id]
+
+
 def entry_of(history, process_id: str):
-    for entry in history.ready_timeline:
-        if entry.process_id == process_id:
-            return entry
-    raise AssertionError(f"{process_id} no está en readyTimeline")
+    """La única aparición de un proceso. Falla si tuvo más de una (o ninguna):
+    ese es justamente el caso en que hay que usar entries_of() en su lugar."""
+    matches = entries_of(history, process_id)
+    if len(matches) != 1:
+        raise AssertionError(
+            f"{process_id} tiene {len(matches)} apariciones, se esperaba exactamente 1"
+        )
+    return matches[0]
 
 
 def states_of(history, process_id: str) -> dict[int, str]:
     return {o.time: o.state for o in entry_of(history, process_id).history}
 
 
+def merged_states_of(history, process_id: str) -> dict[int, str]:
+    """Estados de un proceso combinando TODAS sus apariciones. Es seguro:
+    las apariciones de un mismo proceso nunca se superponen en el tiempo."""
+    merged: dict[int, str] = {}
+    for entry in entries_of(history, process_id):
+        for o in entry.history:
+            merged[o.time] = o.state
+    return merged
+
+
 class TestReadyTimeline:
-    def test_un_proceso_por_entrada_sin_duplicados(self):
+    def test_apariciones_igual_a_llegada_mas_retornos_de_io(self):
+        """Cada proceso tiene una aparición por llegada y una por cada E/S que
+        completa (regla de apariciones: apropiación no crea, retorno de E/S sí)."""
         for nombre, procesos in ESCENARIOS.items():
             history = run(procesos).history
-            ids = [e.process_id for e in history.ready_timeline]
-            assert len(ids) == len(set(ids)), nombre
-            assert set(ids) == {p.id for p in procesos}, nombre
+            conteo: dict[str, int] = {}
+            for e in history.ready_timeline:
+                conteo[e.process_id] = conteo.get(e.process_id, 0) + 1
+            esperado = {p.id: 1 + len(p.io_operations) for p in procesos}
+            assert conteo == esperado, nombre
 
-    def test_visual_index_es_permanente_y_consecutivo(self):
+    def test_visual_index_es_consecutivo_desde_cero(self):
         for nombre, procesos in ESCENARIOS.items():
             history = run(procesos).history
             indices = [e.visual_index for e in history.ready_timeline]
-            assert indices == list(range(len(procesos))), nombre
+            assert indices == list(range(len(history.ready_timeline))), nombre
 
     def test_visual_index_sigue_el_orden_de_llegada(self):
         """Caso 02: tres llegadas simultáneas conservan el orden de ingreso."""
@@ -77,28 +100,53 @@ class TestReadyTimeline:
         assert [e.process_id for e in history.ready_timeline] == ["P1", "P2", "P3"]
         assert [e.visual_index for e in history.ready_timeline] == [0, 1, 2]
 
-    def test_visual_index_no_cambia_tras_apropiacion_ni_tras_io(self):
-        """Caso 07: P1 es bloqueado, vuelve de E/S y apropia; P2 es expropiado."""
-        history = run(CASO_07).history
-        assert entry_of(history, "P1").visual_index == 0
-        assert entry_of(history, "P2").visual_index == 1
-        # el proceso sale y vuelve varias veces, pero solo existe una tarjeta
-        assert len(history.ready_timeline) == 2
+    def test_apropiacion_no_crea_aparicion_nueva(self):
+        """Caso 04: P1 es apropiado por P2 pero nunca hace E/S -> una sola tarjeta."""
+        history = run(CASO_04).history
+        apariciones = entries_of(history, "P1")
+        assert len(apariciones) == 1
+        assert apariciones[0].visual_index == 0
+        assert apariciones[0].first_appearance == 0
 
-    def test_first_appearance_es_el_tick_de_llegada(self):
+    def test_retorno_de_io_crea_aparicion_nueva(self):
+        """Caso 07: P1 hace una E/S y regresa -> dos tarjetas, cada una con su
+        propio visualIndex y firstAppearance permanentes mientras está vigente."""
         history = run(CASO_07).history
-        assert entry_of(history, "P1").first_appearance == 0
+        apariciones = entries_of(history, "P1")
+        assert len(apariciones) == 2
+        assert (apariciones[0].visual_index, apariciones[0].first_appearance) == (0, 0)
+        assert (apariciones[1].visual_index, apariciones[1].first_appearance) == (2, 8)
+        # P2 nunca hace E/S: una sola aparición, con el visualIndex intermedio
+        # (se creó al llegar, antes de que P1 regresara de su E/S)
+        assert entry_of(history, "P2").visual_index == 1
+
+    def test_first_appearance_del_proceso_es_el_tick_de_llegada(self):
+        history = run(CASO_07).history
+        assert entries_of(history, "P1")[0].first_appearance == 0
         assert entry_of(history, "P2").first_appearance == 4
 
-    def test_historia_arranca_en_first_appearance_y_es_contigua(self):
+    def test_cada_aparicion_es_contigua_y_termina_donde_debe(self):
+        """La historia de una aparición arranca en su firstAppearance y es
+        contigua sin huecos. Si fue superada por una aparición posterior del
+        mismo proceso, termina justo un tick antes de que esa comience
+        (queda fija ahí, sin volver a actualizarse). La última aparición de
+        cada proceso llega hasta el final de la simulación."""
         for nombre, procesos in ESCENARIOS.items():
             result = run(procesos)
             ultimo_tick = result.snapshots[-1].time - 1
-            for entry in result.history.ready_timeline:
-                tiempos = [o.time for o in entry.history]
-                assert tiempos[0] == entry.first_appearance, (nombre, entry.process_id)
-                assert tiempos[-1] == ultimo_tick, (nombre, entry.process_id)
-                assert tiempos == list(range(tiempos[0], tiempos[-1] + 1)), nombre
+            por_proceso: dict[str, list] = {}
+            for e in result.history.ready_timeline:
+                por_proceso.setdefault(e.process_id, []).append(e)
+            for pid, apariciones in por_proceso.items():
+                for i, entry in enumerate(apariciones):
+                    tiempos = [o.time for o in entry.history]
+                    assert tiempos[0] == entry.first_appearance, (nombre, pid, i)
+                    assert tiempos == list(range(tiempos[0], tiempos[-1] + 1)), (nombre, pid, i)
+                    if i == len(apariciones) - 1:
+                        assert tiempos[-1] == ultimo_tick, (nombre, pid, i)
+                    else:
+                        assert tiempos[-1] == apariciones[i + 1].first_appearance - 1, \
+                            (nombre, pid, i)
 
     def test_estados_siguen_la_simulacion_caso_04(self):
         """P1 ejecuta 0-2, es apropiado, espera 3-7 y vuelve 8-14."""
@@ -112,12 +160,16 @@ class TestReadyTimeline:
         assert [p2[t] for t in range(8, 15)] == ["TERMINATED"] * 7
 
     def test_estados_siguen_la_simulacion_con_io(self):
-        """Caso 07: P1 RUNNING 0-4, BLOCKED 5-7, RUNNING 8-12, TERMINATED 13-14."""
-        p1 = states_of(run(CASO_07).history, "P1")
-        assert [p1[t] for t in range(0, 5)] == ["RUNNING"] * 5
-        assert [p1[t] for t in range(5, 8)] == ["BLOCKED"] * 3
-        assert [p1[t] for t in range(8, 13)] == ["RUNNING"] * 5
-        assert [p1[t] for t in range(13, 15)] == ["TERMINATED"] * 2
+        """Caso 07: primera aparición de P1 RUNNING 0-4, BLOCKED 5-7 (queda fija
+        ahí); segunda aparición RUNNING 8-12, TERMINATED 13-14."""
+        history = run(CASO_07).history
+        primera, segunda = entries_of(history, "P1")
+        p1_primera = {o.time: o.state for o in primera.history}
+        p1_segunda = {o.time: o.state for o in segunda.history}
+        assert [p1_primera[t] for t in range(0, 5)] == ["RUNNING"] * 5
+        assert [p1_primera[t] for t in range(5, 8)] == ["BLOCKED"] * 3
+        assert [p1_segunda[t] for t in range(8, 13)] == ["RUNNING"] * 5
+        assert [p1_segunda[t] for t in range(13, 15)] == ["TERMINATED"] * 2
 
     def test_active_solo_es_true_en_ready(self):
         for nombre, procesos in ESCENARIOS.items():
@@ -152,21 +204,29 @@ class TestReadyTimeline:
                         (nombre, entry.process_id, o.time)
 
     def test_cpu_ejecutada_avanza_una_unidad_por_tick_ejecutado(self):
+        """executed_cpu es acumulado del PROCESO, no se reinicia en cada
+        aparición nueva: por eso se compara contra los ticks ejecutados del
+        proceso completo, acotados al último tick de cada aparición."""
         for nombre, procesos in ESCENARIOS.items():
             history = run(procesos).history
-            for entry in history.ready_timeline:
-                ejecutados = {
-                    t
-                    for b in history.cpu_timeline if b.process_id == entry.process_id
+            ejecutados_por_proceso = {
+                pid: {
+                    t for b in history.cpu_timeline if b.process_id == pid
                     for t in range(b.start, b.end)
                 }
+                for pid in {e.process_id for e in history.ready_timeline}
+            }
+            for entry in history.ready_timeline:
+                ejecutados = ejecutados_por_proceso[entry.process_id]
                 previo = None
                 for o in entry.history:
                     if previo is not None:
                         esperado = previo + (1 if o.time in ejecutados else 0)
                         assert o.executed_cpu == esperado, (nombre, entry.process_id, o.time)
                     previo = o.executed_cpu
-                assert entry.history[-1].executed_cpu == len(ejecutados), (nombre, entry.process_id)
+                esperado_final = sum(1 for t in ejecutados if t <= entry.history[-1].time)
+                assert entry.history[-1].executed_cpu == esperado_final, \
+                    (nombre, entry.process_id, entry.visual_index)
 
     def test_prioridad_estable_y_correcta(self):
         for nombre, procesos in ESCENARIOS.items():
@@ -226,7 +286,7 @@ class TestCPUTimeline:
             for b in history.cpu_timeline:
                 if b.process_id is None:
                     continue
-                estados = states_of(history, b.process_id)
+                estados = merged_states_of(history, b.process_id)
                 for t in range(b.start, b.end):
                     assert estados[t] == "RUNNING", (nombre, b.process_id, t)
 
@@ -250,17 +310,23 @@ class TestIOTimeline:
 
     def test_bloques_alineados_con_el_estado_blocked(self):
         history = run(CASO_08).history
-        estados = states_of(history, "P1")
+        estados = merged_states_of(history, "P1")
         for b in history.io_timeline:
             for t in range(b.start, b.end):
                 assert estados[t] == "BLOCKED", (b.start, t)
         bloqueados = sum(1 for s in estados.values() if s == "BLOCKED")
         assert bloqueados == sum(b.duration for b in history.io_timeline)
 
-    def test_visual_index_constante_entre_operaciones(self):
+    def test_visual_index_es_el_de_la_aparicion_vigente_al_bloquearse(self):
+        """Caso 08: P1 tiene 2 operaciones de E/S, cada una ocurre durante una
+        aparición distinta (la 2da E/S ocurre ya en la 2da aparición, abierta
+        al regresar de la 1ra)."""
         history = run(CASO_08).history
-        esperado = entry_of(history, "P1").visual_index
-        assert {b.visual_index for b in history.io_timeline} == {esperado}
+        apariciones = entries_of(history, "P1")
+        assert len(apariciones) == 3
+        assert [b.visual_index for b in history.io_timeline] == [
+            apariciones[0].visual_index, apariciones[1].visual_index,
+        ]
 
     def test_prioridad_y_cpu_restante_al_iniciar_la_io(self):
         """Caso 08: burst 20, E/S en 5 y en 12 -> restante 15 y 8."""
@@ -270,14 +336,17 @@ class TestIOTimeline:
             (2, 8),
         ]
 
-    def test_varios_procesos_con_io_conservan_su_indice(self):
+    def test_varios_procesos_con_io_referencian_su_primera_aparicion(self):
         procesos = [
             make_process("P1", 0, 8, 2, [make_io(3, 2)]),
             make_process("P2", 0, 6, 4, [make_io(2, 3)]),
         ]
         history = run(procesos).history
-        for b in history.io_timeline:
-            assert b.visual_index == entry_of(history, b.process_id).visual_index
+        p1_primera = entries_of(history, "P1")[0]
+        p2_primera = entries_of(history, "P2")[0]
+        assert [b.visual_index for b in history.io_timeline] == [
+            p1_primera.visual_index, p2_primera.visual_index,
+        ]
         assert len(history.io_timeline) == 2
 
     def test_orden_cronologico(self):
