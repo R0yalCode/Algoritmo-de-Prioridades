@@ -18,7 +18,7 @@ export default function Legend() {
   return (
     <section className="hv-legend" aria-label="Leyenda">
       <div className="hv-legend-group">
-        <span className="hv-legend-title">Ready</span>
+        <span className="hv-legend-title">Procesos listos</span>
         {READY_STATES.map(({ state, label }) => (
           <span key={state} className="hv-legend-item">
             <span className="hv-legend-swatch hv-card" data-state={state} />

@@ -21,10 +21,13 @@ const variants = {
   danger: 'btn-danger',
 };
 
+// Sistema de tamaños centralizado: toda la app comparte estas tres escalas
+// (ver .btn-sm/.btn-md/.btn-lg en styles.css). Ninguna pantalla define
+// padding, altura o tipografía de botón por su cuenta.
 const sizes = {
-  sm: 'px-3 py-1.5 text-sm',
-  md: 'px-5 py-2.5',
-  lg: 'px-7 py-3 text-base',
+  sm: 'btn-sm',
+  md: 'btn-md',
+  lg: 'btn-lg',
 };
 
 export default function GlassButton({

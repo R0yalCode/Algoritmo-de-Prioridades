@@ -55,6 +55,16 @@ class ObservationDraft:
 
 @dataclass
 class ProcessTrack:
+    """Una aparición histórica de un proceso en la Ready Queue.
+
+    Un mismo proceso puede tener varias apariciones a lo largo de la
+    simulación: una nueva se abre en su llegada y otra cada vez que regresa de
+    E/S (docs/13_historia_pedagogica.md, regla de apariciones). La apropiación
+    NO abre una aparición nueva: el proceso vuelve a READY dentro de la misma.
+    `visual_index` y `first_appearance` se fijan al abrir la aparición y no
+    cambian mientras esté vigente.
+    """
+
     process_id: str
     visual_index: int
     first_appearance: int
@@ -119,6 +129,11 @@ class IOBlockDraft:
     `source_tick` es el tick en el que se registró IO_START: el proceso ejecutó
     su última unidad y quedó bloqueado al cerrar ese tick, por lo que el bloqueo
     ocupa [source_tick + 1, end).
+
+    `track` referencia directamente la aparición que estaba vigente en el
+    momento de IO_START (nunca la aparición "actual" del proceso, que puede
+    haber cambiado para cuando se construye la línea de tiempo: el regreso de
+    esta misma E/S abre una aparición nueva en IO_COMPLETE).
     """
 
     process_id: str
@@ -126,6 +141,7 @@ class IOBlockDraft:
     start: int
     end: Optional[int] = None
     completed: bool = False
+    track: Optional["ProcessTrack"] = None
 
     def close(self, end: int) -> None:
         self.end = end

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
+import SimulationProvider from './state/SimulationProvider';
 
 const Home = lazy(() => import('./pages/Home'));
 const CreateExercise = lazy(() => import('./components/exercise/CreateExercisePage'));
@@ -20,18 +21,20 @@ function LoadingFallback() {
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="app">
-        <Suspense fallback={<LoadingFallback />}>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/create" element={<CreateExercise />} />
-            <Route path="/library" element={<Library />} />
-            <Route path="/simulation/:simId" element={<Simulation />} />
-            <Route path="/timeline/:simId" element={<HistoryView />} />
-            <Route path="/results/:simId" element={<Results />} />
-          </Routes>
-        </Suspense>
-      </div>
+      <SimulationProvider>
+        <div className="app">
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/create" element={<CreateExercise />} />
+              <Route path="/library" element={<Library />} />
+              <Route path="/simulation/:simId" element={<Simulation />} />
+              <Route path="/timeline/:simId" element={<HistoryView />} />
+              <Route path="/results/:simId" element={<Results />} />
+            </Routes>
+          </Suspense>
+        </div>
+      </SimulationProvider>
     </BrowserRouter>
   );
 }

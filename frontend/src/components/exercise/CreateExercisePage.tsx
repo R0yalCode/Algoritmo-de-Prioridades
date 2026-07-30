@@ -1,9 +1,11 @@
 import { useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Plus, Play, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Play, X, AlertCircle } from 'lucide-react';
 import { api } from '../../services/api';
+import { useSimulationStore } from '../../state/simulationContext';
 import GlassButton from '../ui/GlassButton';
+import GlassDialog from '../ui/GlassDialog';
 import ProcessTable from './ProcessTable';
 import type { ProcessFormData } from '../../types';
 
@@ -14,6 +16,7 @@ function emptyProcess(): ProcessFormData {
 export default function CreateExercisePage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { save } = useSimulationStore();
 
   const initial = (location.state as any)?.loadExercise?.processes;
   const [processes, setProcesses] = useState<ProcessFormData[]>(
@@ -32,6 +35,7 @@ export default function CreateExercisePage() {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const updateProcess = useCallback((idx: number, p: ProcessFormData) => {
     setProcesses((prev) => {
@@ -52,6 +56,11 @@ export default function CreateExercisePage() {
     });
   }, []);
 
+  /**
+   * Crear → ejecutar → recibir resultado → guardarlo en el estado global →
+   * navegar a la Vista Histórica. Ante cualquier error no se navega: el
+   * usuario permanece aquí con el mensaje correspondiente.
+   */
   const handleCreate = async () => {
     setError('');
     setLoading(true);
@@ -62,14 +71,47 @@ export default function CreateExercisePage() {
       priority: p.priority,
       ioOperations: p.ioOperations,
     }));
-    const res = await api.create(payload);
-    if (!res.success) {
-      setError(res.error?.message || 'Error al crear la simulación');
+
+    try {
+      const created = await api.create(payload);
+      if (!created.success || !created.data) {
+        setError(created.error?.message || 'Error al crear la simulación');
+        return;
+      }
+      const simId = created.data.simulationId;
+
+      const executed = await api.execute(simId);
+      if (!executed.success) {
+        setError(executed.error?.message || 'Error al ejecutar la simulación');
+        return;
+      }
+
+      const results = await api.getResults(simId);
+      if (!results.success || !results.data) {
+        setError(results.error?.message || 'Error al obtener resultados');
+        return;
+      }
+      if (!results.data.history) {
+        setError('La simulación no devolvió historial pedagógico');
+        return;
+      }
+
+      save({
+        simulationId: simId,
+        processes: payload,
+        history: results.data.history,
+        gantt: results.data.gantt,
+        metrics: results.data.metrics,
+        globalMetrics: results.data.globalMetrics,
+      });
+
+      navigate(`/timeline/${simId}`);
+    } catch {
+      // Respuesta no interpretable o backend inaccesible: no se navega.
+      setError('No se pudo completar la simulación. Revise los datos e intente nuevamente.');
+    } finally {
       setLoading(false);
-      return;
     }
-    setLoading(false);
-    navigate(`/simulation/${res.data!.simulationId}`, { state: { processes: payload } });
   };
 
   return (
@@ -89,7 +131,7 @@ export default function CreateExercisePage() {
             <p className="create-desc">Defina los procesos que participarán en la simulación.</p>
           </div>
         </div>
-        <GlassButton variant="primary" icon={<Plus size={16} />} onClick={addProcess}>
+        <GlassButton variant="primary" size="lg" icon={<Plus size={18} />} onClick={addProcess}>
           Agregar proceso
         </GlassButton>
       </div>
@@ -108,11 +150,30 @@ export default function CreateExercisePage() {
       />
 
       <div className="create-footer">
-        <GlassButton variant="ghost" onClick={() => navigate(-1)}>Cancelar</GlassButton>
-        <GlassButton variant="primary" icon={<Play size={16} />} onClick={handleCreate} loading={loading}>
+        <GlassButton
+          variant="secondary" size="lg" icon={<X size={18} />}
+          onClick={() => setShowCancelConfirm(true)}
+        >
+          Cancelar
+        </GlassButton>
+        <GlassButton
+          variant="primary" size="lg" icon={<Play size={18} />}
+          onClick={handleCreate} loading={loading}
+        >
           Iniciar simulación
         </GlassButton>
       </div>
+
+      <GlassDialog
+        open={showCancelConfirm}
+        onClose={() => setShowCancelConfirm(false)}
+        onConfirm={() => navigate(-1)}
+        title="Cancelar ejercicio"
+        message="¿Está seguro de cancelar este ejercicio? Se perderán todos los cambios realizados."
+        confirmLabel="Cancelar"
+        cancelLabel="Continuar editando"
+        variant="warning"
+      />
     </motion.div>
   );
 }
