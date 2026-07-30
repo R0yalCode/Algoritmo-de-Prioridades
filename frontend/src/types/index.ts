@@ -58,6 +58,65 @@ export interface GlobalMetrics {
   cpuUtilization: number;
 }
 
+/* ── Historia pedagógica (única fuente de la vista histórica) ──
+   El backend entrega este modelo ya resuelto: la vista no calcula
+   estados, posiciones, orden FIFO ni tiempos restantes. */
+
+export type ProcessState = 'NEW' | 'READY' | 'RUNNING' | 'BLOCKED' | 'TERMINATED';
+
+export interface ReadyStateObservation {
+  time: number;
+  state: ProcessState;
+  active: boolean;
+  priority: number;
+  remainingCpu: number;
+  executedCpu: number;
+  fifoOrder: number;
+  readyPosition: number | null;
+}
+
+export interface ReadyTimelineEntry {
+  processId: string;
+  priority: number;
+  firstAppearance: number;
+  visualIndex: number;
+  history: ReadyStateObservation[];
+}
+
+export interface IOTimelineEntry {
+  processId: string;
+  start: number;
+  end: number | null;
+  duration: number | null;
+  priority: number;
+  remainingCpu: number;
+  visualIndex: number;
+  completed: boolean;
+}
+
+export interface CPUTimelineEntry {
+  processId: string | null;
+  start: number;
+  end: number;
+  duration: number;
+  idle: boolean;
+}
+
+export interface EventTimelineEntry {
+  time: number;
+  type: string;
+  processId: string | null;
+  description: string;
+  reason: string;
+}
+
+export interface SimulationHistory {
+  readyTimeline: ReadyTimelineEntry[];
+  ioTimeline: IOTimelineEntry[];
+  cpuTimeline: CPUTimelineEntry[];
+  eventTimeline: EventTimelineEntry[];
+}
+
 export interface SimulationResultData {
   simulationId: string;
   snapshots: Snapshot[];
@@ -65,6 +124,7 @@ export interface SimulationResultData {
   gantt: GanttBlock[];
   metrics: Metric[];
   globalMetrics: GlobalMetrics;
+  history: SimulationHistory | null;
 }
 
 export interface ApiResponse<T> {

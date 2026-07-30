@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, model_validator
 from typing import Optional
 from .enums import ProcessState, CPUStatus, EventType, SimulationStatus
+from src.history.models import SimulationHistory
 
 
 class IOOperation(BaseModel):
@@ -94,6 +95,7 @@ class SimulationResult(BaseModel):
     global_metrics: Optional[GlobalMetrics] = None
     events: list[Event] = []
     gantt: list[GanttBlock] = []
+    history: Optional[SimulationHistory] = None
 
 
 class ValidationError(BaseModel):

@@ -7,10 +7,12 @@ from src.engine.cpu_unit import CPUUnit
 from src.engine.io_manager import IOManager
 from src.engine.event_manager import EventManager
 from src.engine.metrics_calculator import MetricsCalculator
+from src.history.ports import HistoryBuilder
+from src.history.pedagogical_history_builder import PedagogicalHistoryBuilder
 
 
 class SimulationEngine:
-    def __init__(self) -> None:
+    def __init__(self, history_builder: HistoryBuilder | None = None) -> None:
         self.state_mgr = StateManager()
         self.cpl = CPLManager()
         self.scheduler = Scheduler()
@@ -18,6 +20,7 @@ class SimulationEngine:
         self.io_mgr = IOManager()
         self.events = EventManager()
         self.metrics_calc = MetricsCalculator()
+        self.history_builder: HistoryBuilder = history_builder or PedagogicalHistoryBuilder()
         self._processes: list[Process] = []
 
     def execute(self, inp: SimulationInput) -> SimulationResult:
@@ -27,8 +30,11 @@ class SimulationEngine:
         cpu = CPU()
         time = 0
         idle_ticks = 0
+        self.history_builder.reset()
 
-        snapshots.append(self._build_snapshot(time, cpu, gantt_blocks))
+        initial_snapshot = self._build_snapshot(time, cpu, gantt_blocks)
+        snapshots.append(initial_snapshot)
+        self.history_builder.observe_initial_state(initial_snapshot)
 
         while not self._is_simulation_complete(cpu):
             time_events: list[tuple[int, EventType, str | None, str, str]] = []
@@ -144,9 +150,14 @@ class SimulationEngine:
 
             # Step 8: snapshot (handled after clock advance)
             # Step 9: advance clock
+            tick_events = self.events.get_events_at_time(time)
             time += 1
 
-            snapshots.append(self._build_snapshot(time, cpu, gantt_blocks))
+            snapshot = self._build_snapshot(time, cpu, gantt_blocks)
+            snapshots.append(snapshot)
+
+            # Step 10: historia pedagógica derivada del tick recién cerrado
+            self.history_builder.observe_tick(snapshot, tick_events)
 
         metrics, global_metrics = self.metrics_calc.calculate(
             self._processes, time, idle_ticks,
@@ -159,6 +170,7 @@ class SimulationEngine:
             global_metrics=global_metrics,
             events=self.events.get_events(),
             gantt=merged,
+            history=self.history_builder.build(),
         )
 
     def _create_domain_processes(self, creates: list[ProcessCreate]) -> list[Process]:

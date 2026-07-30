@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react';
 const Home = lazy(() => import('./pages/Home'));
 const CreateExercise = lazy(() => import('./components/exercise/CreateExercisePage'));
 const Simulation = lazy(() => import('./pages/Simulation'));
-const TimelineView = lazy(() => import('./pages/TimelineView'));
+const HistoryView = lazy(() => import('./pages/HistoryView'));
 const Results = lazy(() => import('./pages/Results'));
 const Library = lazy(() => import('./pages/Library'));
 
@@ -27,7 +27,7 @@ export default function App() {
             <Route path="/create" element={<CreateExercise />} />
             <Route path="/library" element={<Library />} />
             <Route path="/simulation/:simId" element={<Simulation />} />
-            <Route path="/timeline/:simId" element={<TimelineView />} />
+            <Route path="/timeline/:simId" element={<HistoryView />} />
             <Route path="/results/:simId" element={<Results />} />
           </Routes>
         </Suspense>

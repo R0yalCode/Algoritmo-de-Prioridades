@@ -48,6 +48,67 @@ def _snapshot_to_dict(snap) -> dict:
     }
 
 
+def _history_to_dict(history) -> dict:
+    """Serializa SimulationHistory. Aditivo: no altera las claves existentes."""
+    return {
+        "readyTimeline": [
+            {
+                "processId": e.process_id,
+                "priority": e.priority,
+                "firstAppearance": e.first_appearance,
+                "visualIndex": e.visual_index,
+                "history": [
+                    {
+                        "time": o.time,
+                        "state": o.state,
+                        "active": o.active,
+                        "priority": o.priority,
+                        "remainingCpu": o.remaining_cpu,
+                        "executedCpu": o.executed_cpu,
+                        "fifoOrder": o.fifo_order,
+                        "readyPosition": o.ready_position,
+                    }
+                    for o in e.history
+                ],
+            }
+            for e in history.ready_timeline
+        ],
+        "ioTimeline": [
+            {
+                "processId": b.process_id,
+                "start": b.start,
+                "end": b.end,
+                "duration": b.duration,
+                "priority": b.priority,
+                "remainingCpu": b.remaining_cpu,
+                "visualIndex": b.visual_index,
+                "completed": b.completed,
+            }
+            for b in history.io_timeline
+        ],
+        "cpuTimeline": [
+            {
+                "processId": b.process_id,
+                "start": b.start,
+                "end": b.end,
+                "duration": b.duration,
+                "idle": b.idle,
+            }
+            for b in history.cpu_timeline
+        ],
+        "eventTimeline": [
+            {
+                "time": e.time,
+                "type": e.type,
+                "processId": e.process_id,
+                "description": e.description,
+                "reason": e.reason,
+            }
+            for e in history.event_timeline
+        ],
+    }
+
+
 @router.post("/simulations/validate")
 def validate(body: SimulationCreateRequest):
     processes = [_to_domain_process(p) for p in body.processes]
@@ -108,6 +169,7 @@ def execute_simulation(sim_id: str):
             "averageTurnaroundTime": result.global_metrics.average_turnaround_time,
             "cpuUtilization": result.global_metrics.cpu_utilization,
         } if result.global_metrics else None,
+        "history": _history_to_dict(result.history) if result.history else None,
     }
 
     return {
