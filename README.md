@@ -7,6 +7,10 @@
 ## Practica 1
 <img width="1018" height="938" alt="image" src="https://github.com/user-attachments/assets/2389aaf4-f574-4576-8da8-211a3a65de61" />
 
+## Vista Historica
+<img width="1192" height="683" alt="image" src="https://github.com/user-attachments/assets/ccfe494c-fef8-47fc-96ee-36d714aefa9e" />
+
+
 ## Resultado 
 <img width="882" height="944" alt="image" src="https://github.com/user-attachments/assets/8a5e6d45-3f83-4828-b3de-e55bdbcc1e9e" />
 
